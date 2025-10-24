@@ -1,0 +1,9 @@
+_target_: tabular_autoencoder
+num_numerical: ${data.num_numerical}
+num_categorical: ${data.num_categorical}
+max_emb_dim: ${max_cat_levels}
+
+# Architecture
+latent_dim: 32
+hidden_dims: [128, 64]
+dropout: 0.1

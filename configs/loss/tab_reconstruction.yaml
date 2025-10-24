@@ -1,0 +1,2 @@
+_target_: tabular_reconstruction_loss
+reduction: mean

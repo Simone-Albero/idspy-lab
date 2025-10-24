@@ -1,0 +1,22 @@
+defaults:
+  - model: tabular_classifier
+  - data: cic_2018_v2
+  - loops: default
+  - optimizer: adamw
+  - scheduler: one_cycle
+  - loss: classification
+  - _self_
+  - path: default
+
+# Global settings
+experiment_name: supervised_tab_classifier
+seed: 42
+device: auto  # auto, cpu, cuda, mps
+stage: preprocessing  # preprocessing, training, testing
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: False

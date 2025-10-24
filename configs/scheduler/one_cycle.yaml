@@ -1,0 +1,9 @@
+_target_: OneCycleLR
+
+_params_:
+  max_lr: 0.003
+  pct_start: 0.15
+  anneal_strategy: cos
+  epochs: ${loop.train.epochs}
+  steps_per_epoch: auto
+

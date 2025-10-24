@@ -1,0 +1,7 @@
+out_base_path: resources/experiments/${experiment_name}
+
+data_raw: resources/data/dataset_v2
+data_processed: ${path.out_base_path}/data
+models: ${path.out_base_path}/models
+logs: ${path.out_base_path}/logs
+checkpoints: ${path.out_base_path}/checkpoints
