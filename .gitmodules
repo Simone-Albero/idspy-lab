@@ -1,0 +1,3 @@
+[submodule "idspy"]
+	path = idspy
+	url = https://github.com/Simone-Albero/idspy.git
