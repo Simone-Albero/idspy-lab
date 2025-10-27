@@ -3,7 +3,7 @@ file_name: cic_2018_v2
 format: parquet
 
 # Schema definition
-target_column: Attack
+label_column: Attack
 
 numerical_columns:
   - IN_BYTES
