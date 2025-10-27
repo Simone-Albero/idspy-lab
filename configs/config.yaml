@@ -5,13 +5,16 @@ defaults:
   - optimizer: adamw
   - scheduler: one_cycle
   - loss: classification
-  - path: default
   - _self_
+  - experiment: supervised_classifier
+  - path: default
+
 
 # Global settings
-experiment_name: supervised_tab_classifier
+name: supervised_classifier
 seed: 42
 device: auto  # auto, cpu, cuda, mps
+stage: preprocessing  # preprocessing, training, testing
 
 hydra:
   run:

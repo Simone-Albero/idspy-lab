@@ -12,7 +12,7 @@ from idspy.src.idspy.common.config import load_config
 from idspy.src.idspy.core.storage.dict import DictStorage
 from idspy.src.idspy.nn.torch.helper import get_device
 
-from myexp.supervised_classifier import preprocessing, training, testing
+from experiments import ExperimentFactory
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -36,9 +36,16 @@ def main(cfg: DictConfig):
         }
     )
 
-    # preprocessing(cfg, storage)
-    # training(cfg, storage)
-    testing(cfg, storage)
+    exp = ExperimentFactory.create({"_target_": cfg.name})
+
+    if cfg.stage == "preprocessing":
+        exp.preprocessing(cfg, storage)
+    elif cfg.stage == "training":
+        exp.training(cfg, storage)
+    elif cfg.stage == "testing":
+        exp.testing(cfg, storage)
+    else:
+        raise ValueError(f"Unknown stage: {cfg.stage}")
 
 
 if __name__ == "__main__":

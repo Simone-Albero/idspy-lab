@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - override /model: tabular_classifier
+  - override /loss: classification
+  - override /data: cic_2018_v2
+  - override /loops: default
+  - override /optimizer: adamw
+  - override /scheduler: one_cycle
+
+name: supervised_classifier
