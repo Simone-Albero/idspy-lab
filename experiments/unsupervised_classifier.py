@@ -4,8 +4,6 @@ from omegaconf import DictConfig
 from .base import Experiment
 from . import ExperimentFactory
 
-from idspy.src.idspy.nn.torch.prediction.classification import ArgMax
-
 from idspy.src.idspy.core.storage.dict import DictStorage
 from idspy.src.idspy.core.pipeline.base import PipelineEvent
 from idspy.src.idspy.core.pipeline.observable import (
@@ -23,6 +21,7 @@ from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
     ColsToNumpy,
+    Filter,
 )
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
@@ -43,14 +42,15 @@ from idspy.src.idspy.builtins.step.nn.torch.engine.epoch import (
     TrainOneEpoch,
     ValidateOneEpoch,
 )
-from idspy.src.idspy.builtins.step.nn.torch.engine.forward import MakePredictions
 
 from idspy.src.idspy.builtins.step.nn.torch.engine.early_stopping import EarlyStopping
 from idspy.src.idspy.builtins.step.nn.torch.model.io import (
     LoadModelWeights,
     SaveModelWeights,
 )
-from idspy.src.idspy.builtins.step.metric.classification import ClassificationMetrics
+from idspy.src.idspy.builtins.step.metric.classification import (
+    UnsupervisedClassificationMetrics,
+)
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 
 from idspy.src.idspy.builtins.step.log.tensorboard import MetricsLogger, WeightsLogger
@@ -58,7 +58,7 @@ from idspy.src.idspy.builtins.step.log.projection import VectorsProjectionPlot
 
 
 @ExperimentFactory.register()
-class SupervisedClassifier(Experiment):
+class UnsupervisedClassifier(Experiment):
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()
@@ -73,7 +73,7 @@ class SupervisedClassifier(Experiment):
             steps=[
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
-                LabelMap(),
+                LabelMap(benign_tag=cfg.data.benign_tag),
             ],
             name="fit_aware_pipeline",
             bus=bus,
@@ -127,13 +127,20 @@ class SupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
+                Filter(
+                    df_key="train.data",
+                    query=f"original_{cfg.data.label_column} == '{cfg.data.benign_tag}'",
+                ),
+                Filter(
+                    df_key="val.data",
+                    query=f"original_{cfg.data.label_column} == '{cfg.data.benign_tag}'",
+                ),
                 BuildModel(model_args=cfg.model),
                 BuildLoss(loss_args=cfg.loss),
-                BuildOptimizer(optimizer_args=cfg.optimizer),
+                BuildOptimizer(optimizer_args=cfg.optimizer, loss_key="loss_fn"),
                 BuildDataset(
                     df_key="train.data",
                     dataset_key="train.dataset",
-                    label_col=cfg.data.label_column,
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.train.dataloader,
@@ -146,7 +153,6 @@ class SupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="val.data",
                     dataset_key="val.dataset",
-                    label_col=cfg.data.label_column,
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.val.dataloader,
@@ -169,7 +175,7 @@ class SupervisedClassifier(Experiment):
                     loss_fn_key="loss_fn",
                 ),
                 EarlyStopping(
-                    min_delta=0.001,
+                    min_delta=0.001,  # TODO: make configurable
                     metrics_key="val.metrics",
                     stop_key="stop_pipeline",
                 ),
@@ -223,12 +229,19 @@ class SupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="test.data",
                     dataset_key="test.dataset",
-                    label_col=cfg.data.label_column,
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.test.dataloader,
                     dataset_key="test.dataset",
                     dataloader_key="test.dataloader",
+                ),
+                BuildLoss(
+                    loss_args={
+                        "_target_": cfg.loss._target_,
+                        "reduction": "none",
+                        "initial_alpha": 0.00001,
+                        "learnable_weight": False,
+                    }
                 ),
             ],
             storage=storage,
@@ -241,12 +254,13 @@ class SupervisedClassifier(Experiment):
                     dataloader_key="test.dataloader",
                     metrics_key="test.metrics",
                     outputs_key="test.outputs",
+                    losses_key="test.losses",
+                    loss_fn_key="loss_fn",
                     save_outputs=True,
                 ),
                 CatTensors(
-                    tensors_key="test.outputs",
-                    section="logits",
-                    output_key="test.logits_tensor",
+                    tensors_key="test.losses",
+                    output_key="test.losses_tensor",
                 ),
                 CatTensors(
                     tensors_key="test.outputs",
@@ -254,14 +268,9 @@ class SupervisedClassifier(Experiment):
                     output_key="test.latents_tensor",
                 ),
                 MetricsLogger(log_dir=cfg.path.logs, metrics_key="test.metrics"),
-                MakePredictions(
-                    pred_fn=ArgMax(),
-                    logits_key="test.logits_tensor",
-                    outputs_key="test.preds",
-                ),
-                ClassificationMetrics(
+                UnsupervisedClassificationMetrics(
                     labels_key="test.labels",
-                    predictions_key="test.preds",
+                    predictions_key="test.losses_tensor",
                     metrics_key="test.classification_metrics",
                 ),
                 ClusteringMetrics(
@@ -302,3 +311,9 @@ class SupervisedClassifier(Experiment):
         )
 
         full_pipeline.run()
+
+
+# TODO:
+# It seems that the ReconstructionLoss goes to zero during training. This means that the categorical contribution is almost excluded.
+# Investigate why.
+# Note that the performance with alpha fixed to 1.0 is almost identical to the performance with alpha learned (0.0).
