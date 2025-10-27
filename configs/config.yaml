@@ -12,7 +12,6 @@ defaults:
 experiment_name: supervised_tab_classifier
 seed: 42
 device: auto  # auto, cpu, cuda, mps
-prova: yess
 
 hydra:
   run:
