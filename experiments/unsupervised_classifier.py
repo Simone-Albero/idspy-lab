@@ -73,7 +73,7 @@ class UnsupervisedClassifier(Experiment):
             steps=[
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
-                LabelMap(benign_tag=cfg.data.benign_tag),
+                LabelMap(benign_tag="DDOS attack-HOIC"),
             ],
             name="fit_aware_pipeline",
             bus=bus,
@@ -129,11 +129,11 @@ class UnsupervisedClassifier(Experiment):
                 ExtractSplitPartitions(),
                 Filter(
                     df_key="train.data",
-                    query=f"original_{cfg.data.label_column} == '{cfg.data.benign_tag}'",
+                    query=f"original_{cfg.data.label_column} == 'DDOS attack-HOIC'",
                 ),
                 Filter(
                     df_key="val.data",
-                    query=f"original_{cfg.data.label_column} == '{cfg.data.benign_tag}'",
+                    query=f"original_{cfg.data.label_column} == 'DDOS attack-HOIC'",
                 ),
                 BuildModel(model_args=cfg.model),
                 BuildLoss(loss_args=cfg.loss),
@@ -215,6 +215,10 @@ class UnsupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
+                Filter(
+                    df_key="test.data",
+                    query=f"original_{cfg.data.label_column} == 'DDOS attack-HOIC' or original_{cfg.data.label_column} == 'DoS attacks-Hulk'",
+                ),
                 ColsToNumpy(
                     df_key="test.data",
                     output_key="test.labels",
@@ -239,8 +243,9 @@ class UnsupervisedClassifier(Experiment):
                     loss_args={
                         "_target_": cfg.loss._target_,
                         "reduction": "none",
-                        "initial_alpha": 0.00001,
                         "learnable_weight": False,
+                        "numerical_sigma": 0.1,
+                        "categorical_sigma": 0.1,
                     }
                 ),
             ],

@@ -23,6 +23,7 @@ from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
     ColsToNumpy,
+    Filter,
 )
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
@@ -94,6 +95,9 @@ class SupervisedClassifier(Experiment):
                 RareClassFilter(
                     target_col=cfg.data.label_column,
                     min_count=3000,
+                ),
+                Filter(
+                    query=f"{cfg.data.label_column} != '{cfg.data.benign_tag}'",
                 ),
                 StratifiedSplit(
                     class_col=cfg.data.label_column,
