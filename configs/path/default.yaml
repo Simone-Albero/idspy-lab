@@ -3,5 +3,5 @@ out_base_path: resources/outputs/${name}
 data_raw: resources/data/dataset_v2
 data_processed: ${path.out_base_path}/data
 model: ${path.out_base_path}/models
-logs: ${path.out_base_path}/logs
+logs: resources/outputs/logs
 checkpoints: ${path.out_base_path}/checkpoints

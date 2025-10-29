@@ -1,3 +1,6 @@
+import datetime
+
+
 from omegaconf import DictConfig
 
 
@@ -60,6 +63,10 @@ from idspy.src.idspy.builtins.step.log.projection import VectorsProjectionPlot
 
 @ExperimentFactory.register()
 class SupervisedClassifier(Experiment):
+
+    def __init__(self, cfg: DictConfig) -> None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_dir = f"{cfg.path.logs}/supervised_classifier/{ts}"
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()
@@ -165,8 +172,8 @@ class SupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                MetricsLogger(log_dir=cfg.path.logs, metrics_key="train.metrics"),
-                WeightsLogger(log_dir=cfg.path.logs, model_key="model"),
+                MetricsLogger(log_dir=self.log_dir, metrics_key="train.metrics"),
+                WeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
                     metrics_key="val.metrics",
@@ -257,7 +264,7 @@ class SupervisedClassifier(Experiment):
                     section="latents",
                     output_key="test.latents_tensor",
                 ),
-                MetricsLogger(log_dir=cfg.path.logs, metrics_key="test.metrics"),
+                MetricsLogger(log_dir=self.log_dir, metrics_key="test.metrics"),
                 MakePredictions(
                     pred_fn=ArgMax(),
                     logits_key="test.logits_tensor",
@@ -280,15 +287,15 @@ class SupervisedClassifier(Experiment):
                     output_key="test.projection_plot",
                 ),
                 MetricsLogger(
-                    log_dir=cfg.path.logs,
+                    log_dir=self.log_dir,
                     metrics_key="test.classification_metrics",
                 ),
                 MetricsLogger(
-                    log_dir=cfg.path.logs,
+                    log_dir=self.log_dir,
                     metrics_key="test.clustering_metrics",
                 ),
                 MetricsLogger(
-                    log_dir=cfg.path.logs,
+                    log_dir=self.log_dir,
                     metrics_key="test.projection_plot",
                 ),
             ],

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from omegaconf import DictConfig
 
 
@@ -23,6 +25,7 @@ from idspy.src.idspy.builtins.step.data.adjust import (
     ColsToNumpy,
     Filter,
 )
+from idspy.src.idspy.builtins.step.data.sample import SampleVectorsAndLabels
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
 from idspy.src.idspy.builtins.step.data.split import (
@@ -56,9 +59,19 @@ from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 from idspy.src.idspy.builtins.step.log.tensorboard import MetricsLogger, WeightsLogger
 from idspy.src.idspy.builtins.step.log.projection import VectorsProjectionPlot
 
+from idspy.src.idspy.builtins.step.ml.cluster.algorithms import (
+    KMeans,
+    GaussianMixture,
+    HDBSCAN,
+)
+
 
 @ExperimentFactory.register()
 class UnsupervisedClassifier(Experiment):
+
+    def __init__(self, cfg: DictConfig) -> None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_dir = f"{cfg.path.logs}/unsupervised_classifier/{ts}"
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()
@@ -167,8 +180,8 @@ class UnsupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                MetricsLogger(log_dir=cfg.path.logs, metrics_key="train.metrics"),
-                WeightsLogger(log_dir=cfg.path.logs, model_key="model"),
+                MetricsLogger(log_dir=self.log_dir, metrics_key="train.metrics"),
+                WeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
                     metrics_key="val.metrics",
@@ -272,34 +285,69 @@ class UnsupervisedClassifier(Experiment):
                     section="latents",
                     output_key="test.latents_tensor",
                 ),
-                MetricsLogger(log_dir=cfg.path.logs, metrics_key="test.metrics"),
+                MetricsLogger(log_dir=self.log_dir, metrics_key="test.metrics"),
                 UnsupervisedClassificationMetrics(
                     labels_key="test.labels",
                     predictions_key="test.losses_tensor",
                     metrics_key="test.classification_metrics",
                 ),
+                SampleVectorsAndLabels(
+                    sample_size=10000,
+                    stratify=True,
+                    random_state=cfg.seed,
+                    vectors_key="test.latents_tensor",
+                    labels_key="test.labels",
+                ),
                 ClusteringMetrics(
                     vectors_key="test.latents_tensor",
                     labels_key="test.labels",
-                    metrics_key="test.clustering_metrics",
+                    metrics_key="test.latent_metrics",
                 ),
                 VectorsProjectionPlot(
                     vectors_key="test.latents_tensor",
                     labels_key="test.labels",
                     n_components=2,
-                    output_key="test.projection_plot",
+                    output_key="test.latent_projection_plot",
+                ),
+                GaussianMixture(
+                    n_clusters=10,
+                    data_key="test.latents_tensor",
+                    output_key="test.gm_labels",
+                ),
+                ClusteringMetrics(
+                    vectors_key="test.latents_tensor",
+                    labels_key="test.gm_labels",
+                    metrics_key="test.gm_metrics",
+                ),
+                VectorsProjectionPlot(
+                    vectors_key="test.latents_tensor",
+                    labels_key="test.gm_labels",
+                    n_components=2,
+                    output_key="test.gm_projection_plot",
                 ),
                 MetricsLogger(
-                    log_dir=cfg.path.logs,
+                    log_dir=self.log_dir,
                     metrics_key="test.classification_metrics",
                 ),
                 MetricsLogger(
-                    log_dir=cfg.path.logs,
-                    metrics_key="test.clustering_metrics",
+                    log_dir=self.log_dir,
+                    metrics_key="test.latent_metrics",
+                    secondary_prefix="latents",
                 ),
                 MetricsLogger(
-                    log_dir=cfg.path.logs,
-                    metrics_key="test.projection_plot",
+                    log_dir=self.log_dir,
+                    metrics_key="test.latent_projection_plot",
+                    secondary_prefix="latents",
+                ),
+                MetricsLogger(
+                    log_dir=self.log_dir,
+                    metrics_key="test.gm_metrics",
+                    secondary_prefix="gm",
+                ),
+                MetricsLogger(
+                    log_dir=self.log_dir,
+                    metrics_key="test.gm_projection_plot",
+                    secondary_prefix="gm",
                 ),
             ],
             storage=storage,
@@ -316,9 +364,3 @@ class UnsupervisedClassifier(Experiment):
         )
 
         full_pipeline.run()
-
-
-# TODO:
-# It seems that the ReconstructionLoss goes to zero during training. This means that the categorical contribution is almost excluded.
-# Investigate why.
-# Note that the performance with alpha fixed to 1.0 is almost identical to the performance with alpha learned (0.0).

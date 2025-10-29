@@ -53,8 +53,8 @@ num_numerical: 29
 num_categorical: 11
 benign_tag: Benign
 
-train_size: 0.85
+train_size: 0.8
 val_size: 0.1
-test_size: 0.05
+test_size: 0.1
 
 max_cat_levels: 32

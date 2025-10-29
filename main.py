@@ -36,7 +36,7 @@ def main(cfg: DictConfig):
         }
     )
 
-    exp = ExperimentFactory.create({"_target_": cfg.name})
+    exp = ExperimentFactory.create({"_target_": cfg.name, "cfg": cfg})
 
     if cfg.stage == "preprocessing":
         exp.preprocessing(cfg, storage)
