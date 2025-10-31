@@ -11,7 +11,7 @@ defaults:
 
 
 # Global settings
-name: supervised_classifier
+type: supervised_classifier
 seed: 42
 device: auto  # auto, cpu, cuda, mps
 stage: preprocessing  # preprocessing, training, testing

@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 
 from omegaconf import DictConfig
@@ -22,6 +22,7 @@ from idspy.src.idspy.core.events.event import only_source
 from idspy.src.idspy.builtins.handler.logging import Logger, DataFrameProfiler
 
 from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
+from idspy.src.idspy.builtins.step.data.sample import SampleVectorsAndLabels
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
@@ -54,7 +55,9 @@ from idspy.src.idspy.builtins.step.nn.torch.model.io import (
     LoadModelWeights,
     SaveModelWeights,
 )
-from idspy.src.idspy.builtins.step.metric.classification import ClassificationMetrics
+from idspy.src.idspy.builtins.step.metric.classification import (
+    SupervisedClassificationMetrics,
+)
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 
 from idspy.src.idspy.builtins.step.log.tensorboard import MetricsLogger, WeightsLogger
@@ -138,9 +141,11 @@ class SupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
-                BuildModel(model_args=cfg.model),
-                BuildLoss(loss_args=cfg.loss),
-                BuildOptimizer(optimizer_args=cfg.optimizer),
+                BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
+                BuildLoss(loss_name=cfg.loss.name, loss_args=cfg.loss.args),
+                BuildOptimizer(
+                    optimizer_name=cfg.optimizer.name, optimizer_args=cfg.optimizer.args
+                ),
                 BuildDataset(
                     df_key="train.data",
                     dataset_key="train.dataset",
@@ -152,7 +157,9 @@ class SupervisedClassifier(Experiment):
                     dataloader_key="train.dataloader",
                 ),
                 BuildScheduler(
-                    scheduler_args=cfg.scheduler, dataloader_key="train.dataloader"
+                    scheduler_name=cfg.scheduler.name,
+                    scheduler_args=cfg.scheduler.args,
+                    dataloader_key="train.dataloader",
                 ),
                 BuildDataset(
                     df_key="val.data",
@@ -180,7 +187,9 @@ class SupervisedClassifier(Experiment):
                     loss_fn_key="loss_fn",
                 ),
                 EarlyStopping(
-                    min_delta=0.001,
+                    min_delta=cfg.loops.train.early_stopping.delta,
+                    patience=cfg.loops.train.early_stopping.patience,
+                    mode=cfg.loops.train.early_stopping.mode,
                     metrics_key="val.metrics",
                     stop_key="stop_pipeline",
                 ),
@@ -198,7 +207,7 @@ class SupervisedClassifier(Experiment):
                 training_pipeline,
                 SaveModelWeights(
                     file_path=cfg.path.model,
-                    file_name=cfg.model._target_ + "_final",
+                    file_name=cfg.model.name + "_final",
                     fmt="pt",
                 ),
             ],
@@ -225,10 +234,10 @@ class SupervisedClassifier(Experiment):
                     output_key="test.labels",
                     cols=[cfg.data.label_column],
                 ),
-                BuildModel(model_args=cfg.model),
+                BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 LoadModelWeights(
                     file_path=cfg.path.model,
-                    file_name=cfg.model._target_ + "_final",
+                    file_name=cfg.model.name + "_final",
                     fmt="pt",
                 ),
                 BuildDataset(
@@ -254,34 +263,33 @@ class SupervisedClassifier(Experiment):
                     outputs_key="test.outputs",
                     save_outputs=True,
                 ),
-                CatTensors(
-                    tensors_key="test.outputs",
-                    section="logits",
-                    output_key="test.logits_tensor",
-                ),
-                CatTensors(
-                    tensors_key="test.outputs",
-                    section="latents",
-                    output_key="test.latents_tensor",
-                ),
                 MetricsLogger(log_dir=self.log_dir, metrics_key="test.metrics"),
                 MakePredictions(
                     pred_fn=ArgMax(),
-                    logits_key="test.logits_tensor",
-                    outputs_key="test.preds",
+                    logits_key="test.outputs.logits",
+                    prediction_key="test.preds",
+                    confidences_key="test.confidences",
                 ),
-                ClassificationMetrics(
+                SupervisedClassificationMetrics(
                     labels_key="test.labels",
                     predictions_key="test.preds",
+                    confidences_key="test.confidences",
                     metrics_key="test.classification_metrics",
                 ),
+                SampleVectorsAndLabels(
+                    sample_size=10000,
+                    stratify=True,
+                    random_state=cfg.seed,
+                    vectors_key="test.outputs.latents",
+                    labels_key="test.labels",
+                ),
                 ClusteringMetrics(
-                    vectors_key="test.latents_tensor",
+                    vectors_key="test.outputs.latents",
                     labels_key="test.labels",
                     metrics_key="test.clustering_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.latents_tensor",
+                    vectors_key="test.outputs.latents",
                     labels_key="test.labels",
                     n_components=2,
                     output_key="test.projection_plot",

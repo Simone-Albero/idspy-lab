@@ -7,4 +7,4 @@ defaults:
   - override /optimizer: adamw
   - override /scheduler: one_cycle
 
-name: unsupervised_classifier
+type: unsupervised_classifier

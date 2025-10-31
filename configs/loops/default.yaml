@@ -7,6 +7,11 @@ train:
     shuffle: true
     pin_memory: false
 
+  early_stopping:
+    patience: 5
+    mode: min
+    delta: 0.001
+
 val:
   dataloader:
     batch_size: 1024

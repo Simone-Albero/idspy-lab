@@ -1,6 +1,6 @@
-_target_: AdamW
+name: AdamW
 
-_params_:
+args:
   lr: 0.001
   eps: 1e-08
   weight_decay: 0.01

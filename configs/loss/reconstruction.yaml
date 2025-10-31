@@ -1,5 +1,7 @@
-_target_: tabular_reconstruction_loss
-reduction: mean
-numerical_sigma: 1.0
-categorical_sigma: 5.0
-learnable_weight: True
+name: tabular_reconstruction_loss
+
+args:
+  reduction: mean
+  numerical_sigma: 1.0
+  categorical_sigma: 5.0
+  learnable_weight: True

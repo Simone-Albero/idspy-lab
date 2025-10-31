@@ -1,11 +1,13 @@
-_target_: tabular_classifier
-num_numerical: ${data.num_numerical}
-num_categorical: ${data.num_categorical}
-max_emb_dim: ${data.max_cat_levels}
+name: tabular_classifier
 
-# Architecture
-hidden_dims: [128, 64]
-dropout: 0.1
-out_features: 10 # 11
+args:
+  num_numerical: ${data.num_numerical}
+  num_categorical: ${data.num_categorical}
+  max_emb_dim: ${data.max_cat_levels}
+
+  # Architecture
+  hidden_dims: [128, 64]
+  dropout: 0.1
+  out_features: 10 # 11
 
 
