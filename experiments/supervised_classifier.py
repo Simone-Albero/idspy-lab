@@ -26,7 +26,7 @@ from idspy.src.idspy.builtins.step.data.sample import SampleVectorsAndLabels
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
-    ColsToNumpy,
+    DFToNumpy,
     Filter,
 )
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
@@ -43,7 +43,6 @@ from idspy.src.idspy.builtins.step.nn.torch.builder.optimizer import BuildOptimi
 from idspy.src.idspy.builtins.step.nn.torch.builder.loss import BuildLoss
 from idspy.src.idspy.builtins.step.nn.torch.builder.scheduler import BuildScheduler
 
-from idspy.src.idspy.builtins.step.nn.torch.engine.tensor import CatTensors
 from idspy.src.idspy.builtins.step.nn.torch.engine.epoch import (
     TrainOneEpoch,
     ValidateOneEpoch,
@@ -58,10 +57,10 @@ from idspy.src.idspy.builtins.step.nn.torch.model.io import (
 from idspy.src.idspy.builtins.step.metric.classification import (
     SupervisedClassificationMetrics,
 )
+from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlot
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 
-from idspy.src.idspy.builtins.step.log.tensorboard import MetricsLogger, WeightsLogger
-from idspy.src.idspy.builtins.step.log.projection import VectorsProjectionPlot
+from idspy.src.idspy.builtins.step.log.tensorboard import Logger, WeightsLogger
 
 
 @ExperimentFactory.register()
@@ -84,7 +83,7 @@ class SupervisedClassifier(Experiment):
             steps=[
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
-                LabelMap(),
+                LabelMap(target_col=f"multi_{cfg.data.label_column}"),
             ],
             name="fit_aware_pipeline",
             bus=bus,
@@ -116,6 +115,10 @@ class SupervisedClassifier(Experiment):
                     test_size=cfg.data.test_size,
                 ),
                 fit_aware_pipeline,
+                Logger(
+                    log_dir=self.log_dir,
+                    subject_key="data.labels_mapping",
+                ),
                 SaveData(
                     file_path=cfg.path.data_processed,
                     file_name=cfg.data.file_name,
@@ -179,7 +182,7 @@ class SupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                MetricsLogger(log_dir=self.log_dir, metrics_key="train.metrics"),
+                Logger(log_dir=self.log_dir, subject_key="train.metrics"),
                 WeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
@@ -229,10 +232,10 @@ class SupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
-                ColsToNumpy(
+                DFToNumpy(
                     df_key="test.data",
                     output_key="test.labels",
-                    cols=[cfg.data.label_column],
+                    cols=f"multi_{cfg.data.label_column}",
                 ),
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 LoadModelWeights(
@@ -263,7 +266,7 @@ class SupervisedClassifier(Experiment):
                     outputs_key="test.outputs",
                     save_outputs=True,
                 ),
-                MetricsLogger(log_dir=self.log_dir, metrics_key="test.metrics"),
+                Logger(log_dir=self.log_dir, subject_key="test.metrics"),
                 MakePredictions(
                     pred_fn=ArgMax(),
                     logits_key="test.outputs.logits",
@@ -294,17 +297,17 @@ class SupervisedClassifier(Experiment):
                     n_components=2,
                     output_key="test.projection_plot",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.classification_metrics",
+                    subject_key="test.classification_metrics",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.clustering_metrics",
+                    subject_key="test.clustering_metrics",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.projection_plot",
+                    subject_key="test.projection_plot",
                 ),
             ],
             storage=storage,

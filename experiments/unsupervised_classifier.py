@@ -22,11 +22,11 @@ from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
-    ColsToNumpy,
+    DFToNumpy,
     Filter,
 )
 from idspy.src.idspy.builtins.step.data.sample import SampleVectorsAndLabels
-from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
+from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap, ColumnMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
 from idspy.src.idspy.builtins.step.data.split import (
     StratifiedSplit,
@@ -55,9 +55,9 @@ from idspy.src.idspy.builtins.step.metric.classification import (
     UnsupervisedClassificationMetrics,
 )
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
+from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlot
 
-from idspy.src.idspy.builtins.step.log.tensorboard import MetricsLogger, WeightsLogger
-from idspy.src.idspy.builtins.step.log.projection import VectorsProjectionPlot
+from idspy.src.idspy.builtins.step.log.tensorboard import Logger, WeightsLogger
 
 from idspy.src.idspy.builtins.step.ml.cluster.algorithms import (
     KMeans,
@@ -86,7 +86,15 @@ class UnsupervisedClassifier(Experiment):
             steps=[
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
-                LabelMap(benign_tag="DDOS attack-HOIC"),
+                LabelMap(
+                    # benign_tag=cfg.data.benign_tag,
+                    benign_tag="DDOS attack-HOIC",
+                    target_col=f"binary_{cfg.data.label_column}",
+                ),
+                ColumnMap(
+                    source_col=cfg.data.label_column,
+                    target_col=f"multi_{cfg.data.label_column}",
+                ),
             ],
             name="fit_aware_pipeline",
             bus=bus,
@@ -108,6 +116,9 @@ class UnsupervisedClassifier(Experiment):
                     target_col=cfg.data.label_column,
                     min_count=3000,
                 ),
+                Filter(
+                    query=f"{cfg.data.label_column} == 'DDOS attack-HOIC' or {cfg.data.label_column} == 'DoS attacks-Hulk'",
+                ),
                 StratifiedSplit(
                     class_col=cfg.data.label_column,
                     train_size=cfg.data.train_size,
@@ -115,6 +126,10 @@ class UnsupervisedClassifier(Experiment):
                     test_size=cfg.data.test_size,
                 ),
                 fit_aware_pipeline,
+                Logger(
+                    log_dir=self.log_dir,
+                    subject_key="data.labels_mapping",
+                ),
                 SaveData(
                     file_path=cfg.path.data_processed,
                     file_name=cfg.data.file_name,
@@ -142,11 +157,11 @@ class UnsupervisedClassifier(Experiment):
                 ExtractSplitPartitions(),
                 Filter(
                     df_key="train.data",
-                    query=f"original_{cfg.data.label_column} == 'DDOS attack-HOIC'",
+                    query=f"{cfg.data.label_column} == 'DDOS attack-HOIC'",
                 ),
                 Filter(
                     df_key="val.data",
-                    query=f"original_{cfg.data.label_column} == 'DDOS attack-HOIC'",
+                    query=f"{cfg.data.label_column} == 'DDOS attack-HOIC'",
                 ),
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 BuildLoss(loss_name=cfg.loss.name, loss_args=cfg.loss.args),
@@ -186,7 +201,7 @@ class UnsupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                MetricsLogger(log_dir=self.log_dir, metrics_key="train.metrics"),
+                Logger(log_dir=self.log_dir, subject_key="train.metrics"),
                 WeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
@@ -236,14 +251,15 @@ class UnsupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
-                Filter(
+                DFToNumpy(
                     df_key="test.data",
-                    query=f"original_{cfg.data.label_column} == 'DDOS attack-HOIC' or original_{cfg.data.label_column} == 'DoS attacks-Hulk'",
+                    output_key="test.binary_labels",
+                    cols=f"binary_{cfg.data.label_column}",
                 ),
-                ColsToNumpy(
+                DFToNumpy(
                     df_key="test.data",
-                    output_key="test.labels",
-                    cols=[cfg.data.label_column],
+                    output_key="test.multi_labels",
+                    cols=f"multi_{cfg.data.label_column}",
                 ),
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 LoadModelWeights(
@@ -292,9 +308,9 @@ class UnsupervisedClassifier(Experiment):
                     tensor_key="test.predictions_tensor",
                     output_key="test.predictions",
                 ),
-                MetricsLogger(log_dir=self.log_dir, metrics_key="test.metrics"),
+                Logger(log_dir=self.log_dir, subject_key="test.metrics"),
                 UnsupervisedClassificationMetrics(
-                    labels_key="test.labels",
+                    labels_key="test.binary_labels",
                     predictions_key="test.predictions",
                     metrics_key="test.classification_metrics",
                 ),
@@ -303,18 +319,24 @@ class UnsupervisedClassifier(Experiment):
                     stratify=True,
                     random_state=cfg.seed,
                     vectors_key="test.outputs.latents",
-                    labels_key="test.labels",
+                    labels_key="test.multi_labels",
                 ),
                 ClusteringMetrics(
                     vectors_key="test.outputs.latents",
-                    labels_key="test.labels",
+                    labels_key="test.multi_labels",
                     metrics_key="test.latent_metrics",
                 ),
                 VectorsProjectionPlot(
                     vectors_key="test.outputs.latents",
-                    labels_key="test.labels",
+                    labels_key="test.multi_labels",
                     n_components=2,
-                    output_key="test.latent_projection_plot",
+                    output_key="test.multi_projection_plot",
+                ),
+                VectorsProjectionPlot(
+                    vectors_key="test.outputs.latents",
+                    labels_key="test.binary_labels",
+                    n_components=2,
+                    output_key="test.binary_projection_plot",
                 ),
                 GaussianMixture(
                     n_clusters=10,
@@ -332,28 +354,33 @@ class UnsupervisedClassifier(Experiment):
                     n_components=2,
                     output_key="test.gm_projection_plot",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.classification_metrics",
+                    subject_key="test.classification_metrics",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.latent_metrics",
+                    subject_key="test.latent_metrics",
                     secondary_prefix="latents",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.latent_projection_plot",
+                    subject_key="test.binary_projection_plot",
                     secondary_prefix="latents",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.gm_metrics",
+                    subject_key="test.multi_projection_plot",
+                    secondary_prefix="latents",
+                ),
+                Logger(
+                    log_dir=self.log_dir,
+                    subject_key="test.gm_metrics",
                     secondary_prefix="gm",
                 ),
-                MetricsLogger(
+                Logger(
                     log_dir=self.log_dir,
-                    metrics_key="test.gm_projection_plot",
+                    subject_key="test.gm_projection_plot",
                     secondary_prefix="gm",
                 ),
             ],
