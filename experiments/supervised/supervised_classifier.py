@@ -4,8 +4,8 @@ from datetime import datetime
 from omegaconf import DictConfig
 
 
-from .base import Experiment
-from . import ExperimentFactory
+from ..base import Experiment
+from .. import ExperimentFactory
 
 from idspy.src.idspy.nn.torch.prediction.classification import ArgMax
 
@@ -22,7 +22,10 @@ from idspy.src.idspy.core.events.event import only_source
 from idspy.src.idspy.builtins.handler.logging import Logger, DataFrameProfiler
 
 from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
-from idspy.src.idspy.builtins.step.data.sample import SampleVectorsAndLabels
+from idspy.src.idspy.builtins.step.data.sample import (
+    ComputeIndicesByLabel,
+    SelectSamplesByIndices,
+)
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
@@ -60,7 +63,7 @@ from idspy.src.idspy.builtins.step.metric.classification import (
 from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlot
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 
-from idspy.src.idspy.builtins.step.log.tensorboard import Logger, WeightsLogger
+from idspy.src.idspy.builtins.step.log.tensorboard import TBLogger, TBWeightsLogger
 
 
 @ExperimentFactory.register()
@@ -68,7 +71,7 @@ class SupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/supervised_classifier/{ts}"
+        self.log_dir = f"{cfg.path.logs}/supervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()
@@ -106,7 +109,11 @@ class SupervisedClassifier(Experiment):
                     min_count=3000,
                 ),
                 Filter(
-                    query=f"{cfg.data.label_column} != '{cfg.data.benign_tag}'",
+                    query=(
+                        f"{cfg.data.label_column} != '{cfg.data.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else None
+                    ),
                 ),
                 StratifiedSplit(
                     class_col=cfg.data.label_column,
@@ -115,13 +122,17 @@ class SupervisedClassifier(Experiment):
                     test_size=cfg.data.test_size,
                 ),
                 fit_aware_pipeline,
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="data.labels_mapping",
                 ),
                 SaveData(
                     file_path=cfg.path.data_processed,
-                    file_name=cfg.data.file_name,
+                    file_name=(
+                        cfg.data.file_name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.data.file_name
+                    ),
                     fmt=cfg.data.format,
                 ),
             ],
@@ -140,7 +151,11 @@ class SupervisedClassifier(Experiment):
             steps=[
                 LoadData(
                     file_path=cfg.path.data_processed,
-                    file_name=cfg.data.file_name,
+                    file_name=(
+                        cfg.data.file_name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.data.file_name
+                    ),
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
@@ -152,7 +167,7 @@ class SupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="train.data",
                     dataset_key="train.dataset",
-                    label_col=cfg.data.label_column,
+                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.train.dataloader,
@@ -167,7 +182,7 @@ class SupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="val.data",
                     dataset_key="val.dataset",
-                    label_col=cfg.data.label_column,
+                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.val.dataloader,
@@ -182,8 +197,8 @@ class SupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                Logger(log_dir=self.log_dir, subject_key="train.metrics"),
-                WeightsLogger(log_dir=self.log_dir, model_key="model"),
+                TBLogger(log_dir=self.log_dir, subject_key="train.metrics"),
+                TBWeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
                     metrics_key="val.metrics",
@@ -210,7 +225,11 @@ class SupervisedClassifier(Experiment):
                 training_pipeline,
                 SaveModelWeights(
                     file_path=cfg.path.model,
-                    file_name=cfg.model.name + "_final",
+                    file_name=(
+                        cfg.model.name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.model.name
+                    ),
                     fmt="pt",
                 ),
             ],
@@ -228,7 +247,11 @@ class SupervisedClassifier(Experiment):
             steps=[
                 LoadData(
                     file_path=cfg.path.data_processed,
-                    file_name=cfg.data.file_name,
+                    file_name=(
+                        cfg.data.file_name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.data.file_name
+                    ),
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
@@ -240,13 +263,17 @@ class SupervisedClassifier(Experiment):
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 LoadModelWeights(
                     file_path=cfg.path.model,
-                    file_name=cfg.model.name + "_final",
+                    file_name=(
+                        cfg.model.name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.model.name
+                    ),
                     fmt="pt",
                 ),
                 BuildDataset(
                     df_key="test.data",
                     dataset_key="test.dataset",
-                    label_col=cfg.data.label_column,
+                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.test.dataloader,
@@ -266,7 +293,7 @@ class SupervisedClassifier(Experiment):
                     outputs_key="test.outputs",
                     save_outputs=True,
                 ),
-                Logger(log_dir=self.log_dir, subject_key="test.metrics"),
+                TBLogger(log_dir=self.log_dir, subject_key="test.metrics"),
                 MakePredictions(
                     pred_fn=ArgMax(),
                     logits_key="test.outputs.logits",
@@ -279,33 +306,43 @@ class SupervisedClassifier(Experiment):
                     confidences_key="test.confidences",
                     metrics_key="test.classification_metrics",
                 ),
-                SampleVectorsAndLabels(
+                ComputeIndicesByLabel(
                     sample_size=10000,
                     stratify=True,
                     random_state=cfg.seed,
-                    vectors_key="test.outputs.latents",
                     labels_key="test.labels",
+                    indices_key="test.sample_indices",
+                ),
+                SelectSamplesByIndices(
+                    data_key="test.outputs.latents",
+                    indices_key="test.sample_indices",
+                    output_key="test.sampled_latents",
+                ),
+                SelectSamplesByIndices(
+                    data_key="test.labels",
+                    indices_key="test.sample_indices",
+                    output_key="test.sampled_labels",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.outputs.latents",
-                    labels_key="test.labels",
+                    vectors_key="test.sampled_latents",
+                    labels_key="test.sampled_labels",
                     metrics_key="test.clustering_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.outputs.latents",
-                    labels_key="test.labels",
+                    vectors_key="test.sampled_latents",
+                    labels_key="test.sampled_labels",
                     n_components=2,
                     output_key="test.projection_plot",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.classification_metrics",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.clustering_metrics",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.projection_plot",
                 ),

@@ -3,8 +3,8 @@ from datetime import datetime
 from omegaconf import DictConfig
 
 
-from .base import Experiment
-from . import ExperimentFactory
+from ..base import Experiment
+from .. import ExperimentFactory
 
 from idspy.src.idspy.core.storage.dict import DictStorage
 from idspy.src.idspy.core.pipeline.base import PipelineEvent
@@ -18,6 +18,7 @@ from idspy.src.idspy.core.events.event import only_source
 
 from idspy.src.idspy.builtins.handler.logging import Logger, DataFrameProfiler
 
+
 from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
@@ -25,7 +26,10 @@ from idspy.src.idspy.builtins.step.data.adjust import (
     DFToNumpy,
     Filter,
 )
-from idspy.src.idspy.builtins.step.data.sample import SampleVectorsAndLabels
+from idspy.src.idspy.builtins.step.data.sample import (
+    ComputeIndicesByLabel,
+    SelectSamplesByIndices,
+)
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap, ColumnMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
 from idspy.src.idspy.builtins.step.data.split import (
@@ -57,7 +61,7 @@ from idspy.src.idspy.builtins.step.metric.classification import (
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlot
 
-from idspy.src.idspy.builtins.step.log.tensorboard import Logger, WeightsLogger
+from idspy.src.idspy.builtins.step.log.tensorboard import TBLogger, TBWeightsLogger
 
 from idspy.src.idspy.builtins.step.ml.cluster.algorithms import (
     KMeans,
@@ -71,7 +75,13 @@ class UnsupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/unsupervised_classifier/{ts}"
+        self.log_dir = f"{cfg.path.logs}/unsupervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
+
+        if cfg.experiment.exclude_background:
+            if cfg.experiment.benign_tag is None:
+                raise ValueError(
+                    "benign_tag must be specified for the experiment when exclude_background is True."
+                )
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()
@@ -87,8 +97,11 @@ class UnsupervisedClassifier(Experiment):
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
                 LabelMap(
-                    # benign_tag=cfg.data.benign_tag,
-                    benign_tag="DDOS attack-HOIC",
+                    benign_tag=(
+                        cfg.experiment.benign_tag
+                        if cfg.experiment.exclude_background
+                        else cfg.data.benign_tag
+                    ),
                     target_col=f"binary_{cfg.data.label_column}",
                 ),
                 ColumnMap(
@@ -100,6 +113,13 @@ class UnsupervisedClassifier(Experiment):
             bus=bus,
             storage=storage,
         )
+
+        query = None
+        if cfg.experiment.exclude_background:
+            if cfg.experiment.malicious_tag is not None:
+                query = f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}' or {cfg.data.label_column} == '{cfg.experiment.malicious_tag}'"
+            else:
+                query = f"{cfg.data.label_column} != '{cfg.data.benign_tag}'"
 
         full_pipeline = ObservablePipeline(
             steps=[
@@ -117,7 +137,7 @@ class UnsupervisedClassifier(Experiment):
                     min_count=3000,
                 ),
                 Filter(
-                    query=f"{cfg.data.label_column} == 'DDOS attack-HOIC' or {cfg.data.label_column} == 'DoS attacks-Hulk'",
+                    query=query,
                 ),
                 StratifiedSplit(
                     class_col=cfg.data.label_column,
@@ -126,13 +146,17 @@ class UnsupervisedClassifier(Experiment):
                     test_size=cfg.data.test_size,
                 ),
                 fit_aware_pipeline,
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="data.labels_mapping",
                 ),
                 SaveData(
                     file_path=cfg.path.data_processed,
-                    file_name=cfg.data.file_name,
+                    file_name=(
+                        cfg.data.file_name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.data.file_name
+                    ),
                     fmt=cfg.data.format,
                 ),
             ],
@@ -151,17 +175,29 @@ class UnsupervisedClassifier(Experiment):
             steps=[
                 LoadData(
                     file_path=cfg.path.data_processed,
-                    file_name=cfg.data.file_name,
+                    file_name=(
+                        cfg.data.file_name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.data.file_name
+                    ),
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
                 Filter(
                     df_key="train.data",
-                    query=f"{cfg.data.label_column} == 'DDOS attack-HOIC'",
+                    query=(
+                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
+                    ),
                 ),
                 Filter(
                     df_key="val.data",
-                    query=f"{cfg.data.label_column} == 'DDOS attack-HOIC'",
+                    query=(
+                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
+                    ),
                 ),
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 BuildLoss(loss_name=cfg.loss.name, loss_args=cfg.loss.args),
@@ -201,8 +237,8 @@ class UnsupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                Logger(log_dir=self.log_dir, subject_key="train.metrics"),
-                WeightsLogger(log_dir=self.log_dir, model_key="model"),
+                TBLogger(log_dir=self.log_dir, subject_key="train.metrics"),
+                TBWeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
                     metrics_key="val.metrics",
@@ -229,7 +265,11 @@ class UnsupervisedClassifier(Experiment):
                 training_pipeline,
                 SaveModelWeights(
                     file_path=cfg.path.model,
-                    file_name=cfg.model.name + "_final",
+                    file_name=(
+                        cfg.model.name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.model.name
+                    ),
                     fmt="pt",
                 ),
             ],
@@ -247,7 +287,11 @@ class UnsupervisedClassifier(Experiment):
             steps=[
                 LoadData(
                     file_path=cfg.path.data_processed,
-                    file_name=cfg.data.file_name,
+                    file_name=(
+                        cfg.data.file_name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.data.file_name
+                    ),
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
@@ -264,7 +308,11 @@ class UnsupervisedClassifier(Experiment):
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 LoadModelWeights(
                     file_path=cfg.path.model,
-                    file_name=cfg.model.name + "_final",
+                    file_name=(
+                        cfg.model.name + "_bg"
+                        if not cfg.experiment.exclude_background
+                        else cfg.model.name
+                    ),
                     fmt="pt",
                 ),
                 BuildDataset(
@@ -281,7 +329,7 @@ class UnsupervisedClassifier(Experiment):
                     loss_args={
                         "reduction": "none",
                         "learnable_weight": False,
-                        "numerical_sigma": 0.1,
+                        "numerical_sigma": 0.5691,
                         "categorical_sigma": 0.1,
                     },
                 ),
@@ -308,77 +356,104 @@ class UnsupervisedClassifier(Experiment):
                     tensor_key="test.predictions_tensor",
                     output_key="test.predictions",
                 ),
-                Logger(log_dir=self.log_dir, subject_key="test.metrics"),
+                TBLogger(log_dir=self.log_dir, subject_key="test.metrics"),
                 UnsupervisedClassificationMetrics(
                     labels_key="test.binary_labels",
                     predictions_key="test.predictions",
                     metrics_key="test.classification_metrics",
                 ),
-                SampleVectorsAndLabels(
+                ComputeIndicesByLabel(
                     sample_size=10000,
                     stratify=True,
                     random_state=cfg.seed,
-                    vectors_key="test.outputs.latents",
                     labels_key="test.multi_labels",
+                    indices_key="test.multi_sample_indices",
+                ),
+                ComputeIndicesByLabel(
+                    sample_size=10000,
+                    stratify=True,
+                    random_state=cfg.seed,
+                    labels_key="test.binary_labels",
+                    indices_key="test.binary_sample_indices",
+                ),
+                SelectSamplesByIndices(
+                    data_key="test.outputs.latents",
+                    indices_key="test.multi_sample_indices",
+                    output_key="test.multi_sampled_latents",
+                ),
+                SelectSamplesByIndices(
+                    data_key="test.multi_labels",
+                    indices_key="test.multi_sample_indices",
+                    output_key="test.multi_sampled_labels",
+                ),
+                SelectSamplesByIndices(
+                    data_key="test.outputs.latents",
+                    indices_key="test.binary_sample_indices",
+                    output_key="test.binary_sampled_latents",
+                ),
+                SelectSamplesByIndices(
+                    data_key="test.binary_labels",
+                    indices_key="test.binary_sample_indices",
+                    output_key="test.binary_sampled_labels",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.outputs.latents",
-                    labels_key="test.multi_labels",
+                    vectors_key="test.multi_sampled_latents",
+                    labels_key="test.multi_sampled_labels",
                     metrics_key="test.latent_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.outputs.latents",
-                    labels_key="test.multi_labels",
+                    vectors_key="test.multi_sampled_latents",
+                    labels_key="test.multi_sampled_labels",
                     n_components=2,
                     output_key="test.multi_projection_plot",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.outputs.latents",
-                    labels_key="test.binary_labels",
+                    vectors_key="test.binary_sampled_latents",
+                    labels_key="test.binary_sampled_labels",
                     n_components=2,
                     output_key="test.binary_projection_plot",
                 ),
                 GaussianMixture(
                     n_clusters=10,
-                    data_key="test.outputs.latents",
+                    data_key="test.multi_sampled_latents",
                     output_key="test.gm_labels",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.outputs.latents",
+                    vectors_key="test.multi_sampled_latents",
                     labels_key="test.gm_labels",
                     metrics_key="test.gm_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.outputs.latents",
+                    vectors_key="test.multi_sampled_latents",
                     labels_key="test.gm_labels",
                     n_components=2,
                     output_key="test.gm_projection_plot",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.classification_metrics",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.latent_metrics",
                     secondary_prefix="latents",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.binary_projection_plot",
                     secondary_prefix="latents",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.multi_projection_plot",
                     secondary_prefix="latents",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.gm_metrics",
                     secondary_prefix="gm",
                 ),
-                Logger(
+                TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.gm_projection_plot",
                     secondary_prefix="gm",
