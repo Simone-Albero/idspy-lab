@@ -75,7 +75,7 @@ class UnsupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/unsupervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
+        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/unsupervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
 
         if cfg.experiment.exclude_background:
             if cfg.experiment.benign_tag is None:
