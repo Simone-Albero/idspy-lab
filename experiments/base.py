@@ -17,6 +17,12 @@ class Experiment(ABC):
         """
         pass
 
+    def pretraining(self, cfg: DictConfig, storage: DictStorage) -> None:
+        """
+        Train the model.
+        """
+        pass
+
     @abstractmethod
     def training(self, cfg: DictConfig, storage: DictStorage) -> None:
         """

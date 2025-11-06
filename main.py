@@ -40,6 +40,8 @@ def main(cfg: DictConfig):
 
     if cfg.stage == "preprocessing":
         exp.preprocessing(cfg, storage)
+    elif cfg.stage == "pretraining":
+        exp.pretraining(cfg, storage)
     elif cfg.stage == "training":
         exp.training(cfg, storage)
     elif cfg.stage == "testing":
