@@ -17,7 +17,9 @@ type: semi_supervised_classifier
 experiment:
   # exclude_background: true
   exclude_background: false
-  labeled_fraction: 0.01
+  labeled_fraction: 0.005
+  benign_tag: 'DDOS attack-HOIC'
+  malicious_tag: null
 
 fine_tuning:
   model:

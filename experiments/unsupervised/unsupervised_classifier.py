@@ -75,7 +75,7 @@ class UnsupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/unsupervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
+        self.log_dir = f"{cfg.data.name}/{cfg.path.logs}/unsupervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.seed}/{cfg.stage}_{ts}"
 
         if cfg.experiment.exclude_background:
             if cfg.experiment.benign_tag is None:
@@ -399,7 +399,12 @@ class UnsupervisedClassifier(Experiment):
                 ClusteringMetrics(
                     vectors_key="test.multi_sampled_latents",
                     labels_key="test.multi_sampled_labels",
-                    metrics_key="test.latent_metrics",
+                    metrics_key="test.multi_latent_metrics",
+                ),
+                ClusteringMetrics(
+                    vectors_key="test.binary_sampled_latents",
+                    labels_key="test.binary_sampled_labels",
+                    metrics_key="test.binary_latent_metrics",
                 ),
                 VectorsProjectionPlot(
                     vectors_key="test.multi_sampled_latents",
@@ -414,7 +419,7 @@ class UnsupervisedClassifier(Experiment):
                     output_key="test.binary_projection_plot",
                 ),
                 GaussianMixture(
-                    n_clusters=10,
+                    n_clusters=7,
                     data_key="test.multi_sampled_latents",
                     output_key="test.gm_labels",
                 ),
@@ -435,18 +440,23 @@ class UnsupervisedClassifier(Experiment):
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
-                    subject_key="test.latent_metrics",
-                    secondary_prefix="latents",
+                    subject_key="test.multi_latent_metrics",
+                    secondary_prefix="multi_latents",
+                ),
+                TBLogger(
+                    log_dir=self.log_dir,
+                    subject_key="test.binary_latent_metrics",
+                    secondary_prefix="binary_latents",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.binary_projection_plot",
-                    secondary_prefix="latents",
+                    secondary_prefix="binary_latents",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.multi_projection_plot",
-                    secondary_prefix="latents",
+                    secondary_prefix="multi_latents",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,

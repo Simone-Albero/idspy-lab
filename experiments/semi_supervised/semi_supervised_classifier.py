@@ -72,7 +72,7 @@ class SemiSupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/semi_supervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
+        self.log_dir = f"{cfg.data.name}/{cfg.path.logs}/semi_supervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.seed}/{cfg.stage}_{ts}"
 
         if cfg.experiment.exclude_background:
             if cfg.experiment.benign_tag is None:
@@ -167,6 +167,22 @@ class SemiSupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
+                Filter(
+                    df_key="train.data",
+                    query=(
+                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
+                    ),
+                ),
+                Filter(
+                    df_key="val.data",
+                    query=(
+                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
+                    ),
+                ),
                 BuildModel(
                     model_name=cfg.pretraining.model.name,
                     model_args=cfg.pretraining.model.args,

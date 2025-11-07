@@ -25,6 +25,7 @@ from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
 from idspy.src.idspy.builtins.step.data.sample import (
     ComputeIndicesByLabel,
     SelectSamplesByIndices,
+    Downsample,
 )
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
@@ -71,7 +72,7 @@ class SupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/supervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.stage}_{ts}"
+        self.log_dir = f"{cfg.data.name}/{cfg.path.logs}/supervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.seed}/{cfg.stage}_{ts}"
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()
@@ -159,6 +160,12 @@ class SupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
+                Downsample(
+                    frac=cfg.experiment.labeled_fraction,
+                    class_col=f"multi_{cfg.data.label_column}",
+                    random_state=cfg.seed,
+                    df_key="train.data",
+                ),
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 BuildLoss(loss_name=cfg.loss.name, loss_args=cfg.loss.args),
                 BuildOptimizer(
