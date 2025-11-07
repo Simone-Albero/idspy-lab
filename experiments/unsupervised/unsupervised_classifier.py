@@ -16,7 +16,10 @@ from idspy.src.idspy.core.pipeline.observable import (
 from idspy.src.idspy.core.events.bus import EventBus
 from idspy.src.idspy.core.events.event import only_source
 
-from idspy.src.idspy.builtins.handler.logging import Logger, DataFrameProfiler
+from idspy.src.idspy.builtins.handler.logging import (
+    Logger,
+    DataFrameProfiler as DataFrameProfilerHandler,
+)
 
 
 from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
@@ -62,6 +65,7 @@ from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlot
 
 from idspy.src.idspy.builtins.step.log.tensorboard import TBLogger, TBWeightsLogger
+from idspy.src.idspy.builtins.step.log.profiler import DataFrameProfiler
 
 from idspy.src.idspy.builtins.step.ml.cluster.algorithms import (
     KMeans,
@@ -87,7 +91,7 @@ class UnsupervisedClassifier(Experiment):
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
         bus.subscribe(
-            callback=DataFrameProfiler(),
+            callback=DataFrameProfilerHandler(),
             event_type=PipelineEvent.PIPELINE_END,
             predicate=only_source("preprocessing_pipeline"),
         )
@@ -295,6 +299,10 @@ class UnsupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
+                DataFrameProfiler(
+                    df_key="test.data",
+                    output_key="test.data_profile",
+                ),
                 DFToNumpy(
                     df_key="test.data",
                     output_key="test.binary_labels",
@@ -333,6 +341,7 @@ class UnsupervisedClassifier(Experiment):
                         "categorical_sigma": 0.1,
                     },
                 ),
+                TBLogger(log_dir=self.log_dir, subject_key="test.data_profile"),
             ],
             storage=storage,
             bus=bus,

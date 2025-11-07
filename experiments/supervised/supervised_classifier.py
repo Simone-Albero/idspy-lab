@@ -19,7 +19,10 @@ from idspy.src.idspy.core.pipeline.observable import (
 from idspy.src.idspy.core.events.bus import EventBus
 from idspy.src.idspy.core.events.event import only_source
 
-from idspy.src.idspy.builtins.handler.logging import Logger, DataFrameProfiler
+from idspy.src.idspy.builtins.handler.logging import (
+    Logger,
+    DataFrameProfiler as DataFrameProfilerHandler,
+)
 
 from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
 from idspy.src.idspy.builtins.step.data.sample import (
@@ -65,6 +68,7 @@ from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlo
 from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 
 from idspy.src.idspy.builtins.step.log.tensorboard import TBLogger, TBWeightsLogger
+from idspy.src.idspy.builtins.step.log.profiler import DataFrameProfiler
 
 
 @ExperimentFactory.register()
@@ -78,7 +82,7 @@ class SupervisedClassifier(Experiment):
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
         bus.subscribe(
-            callback=DataFrameProfiler(),
+            callback=DataFrameProfilerHandler(),
             event_type=PipelineEvent.PIPELINE_END,
             predicate=only_source("preprocessing_pipeline"),
         )
@@ -166,6 +170,10 @@ class SupervisedClassifier(Experiment):
                     random_state=cfg.seed,
                     df_key="train.data",
                 ),
+                DataFrameProfiler(
+                    df_key="train.data",
+                    output_key="train.data_profile",
+                ),
                 BuildModel(model_name=cfg.model.name, model_args=cfg.model.args),
                 BuildLoss(loss_name=cfg.loss.name, loss_args=cfg.loss.args),
                 BuildOptimizer(
@@ -196,6 +204,7 @@ class SupervisedClassifier(Experiment):
                     dataset_key="val.dataset",
                     dataloader_key="val.dataloader",
                 ),
+                TBLogger(log_dir=self.log_dir, subject_key="train.data_profile"),
             ],
             storage=storage,
             bus=bus,
@@ -262,6 +271,10 @@ class SupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
+                DataFrameProfiler(
+                    df_key="test.data",
+                    output_key="test.data_profile",
+                ),
                 DFToNumpy(
                     df_key="test.data",
                     output_key="test.labels",
@@ -287,6 +300,7 @@ class SupervisedClassifier(Experiment):
                     dataset_key="test.dataset",
                     dataloader_key="test.dataloader",
                 ),
+                TBLogger(log_dir=self.log_dir, subject_key="test.data_profile"),
             ],
             storage=storage,
             bus=bus,
