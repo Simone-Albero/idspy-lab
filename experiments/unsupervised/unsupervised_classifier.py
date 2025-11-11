@@ -28,6 +28,7 @@ from idspy.src.idspy.builtins.step.data.adjust import (
     RareClassFilter,
     DFToNumpy,
     Filter,
+    Clip,
 )
 from idspy.src.idspy.builtins.step.data.sample import (
     ComputeIndicesByLabel,
@@ -98,6 +99,7 @@ class UnsupervisedClassifier(Experiment):
 
         fit_aware_pipeline = ObservableFittablePipeline(
             steps=[
+                Clip(),
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
                 LabelMap(

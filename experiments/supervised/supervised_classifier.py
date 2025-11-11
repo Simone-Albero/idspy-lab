@@ -35,6 +35,7 @@ from idspy.src.idspy.builtins.step.data.adjust import (
     RareClassFilter,
     DFToNumpy,
     Filter,
+    Clip,
 )
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
@@ -89,6 +90,7 @@ class SupervisedClassifier(Experiment):
 
         fit_aware_pipeline = ObservableFittablePipeline(
             steps=[
+                Clip(),
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
                 LabelMap(target_col=f"multi_{cfg.data.label_column}"),
