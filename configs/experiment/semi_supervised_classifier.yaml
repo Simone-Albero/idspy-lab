@@ -6,7 +6,6 @@ defaults:
   - /loss@pretraining.loss: reconstruction
   - /model@fine_tuning.model: tabular_classifier
   - /loss@fine_tuning.loss: classification
-  - override /data: cic_2018_v2
   - override /loops: default
   - override /optimizer: adamw
   - override /scheduler: one_cycle

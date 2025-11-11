@@ -76,7 +76,7 @@ class SupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig) -> None:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.data.name}/{cfg.path.logs}/supervised_classifier{"_bg" if not cfg.experiment.exclude_background else ""}/{cfg.seed}/{cfg.stage}_{ts}"
+        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/supervised_classifier{'_bg' if not cfg.experiment.exclude_background else ''}/{cfg.seed}/{cfg.stage}_{ts}"
 
     def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
         bus = EventBus()

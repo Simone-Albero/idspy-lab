@@ -2,7 +2,6 @@
 defaults:
   - override /model: tabular_autoencoder
   - override /loss: reconstruction
-  - override /data: cic_2018_v2
   - override /loops: default
   - override /optimizer: adamw
   - override /scheduler: one_cycle
