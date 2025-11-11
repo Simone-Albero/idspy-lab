@@ -4,10 +4,10 @@ defaults:
   - loops: default
   - optimizer: adamw
   - scheduler: one_cycle
+  - loss: classification
   - _self_
   - experiment: supervised_classifier
   - path: default
-  - loss: classification
 
 
 # Global settings

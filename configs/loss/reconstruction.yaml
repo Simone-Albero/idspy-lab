@@ -6,3 +6,4 @@ args:
   categorical_sigma: 5.0
   learnable_weight: True
   save_path: ${path.model}/reconstruction_loss_weights.pt
+
