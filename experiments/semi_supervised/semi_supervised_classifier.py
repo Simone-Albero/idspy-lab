@@ -75,9 +75,8 @@ from idspy.src.idspy.builtins.step.log.profiler import DataFrameProfiler
 @ExperimentFactory.register()
 class SemiSupervisedClassifier(Experiment):
 
-    def __init__(self, cfg: DictConfig) -> None:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/semi_supervised_classifier{'_bg' if not cfg.experiment.exclude_background else ''}/{cfg.seed}/{cfg.stage}_{ts}"
+    def __init__(self, cfg: DictConfig, storage: DictStorage) -> None:
+        super().__init__(cfg, storage)
 
         if cfg.experiment.exclude_background:
             if cfg.experiment.benign_tag is None:
@@ -85,7 +84,10 @@ class SemiSupervisedClassifier(Experiment):
                     "benign_tag must be specified for the experiment when exclude_background is True."
                 )
 
-    def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def preprocessing(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
         bus.subscribe(
@@ -157,7 +159,10 @@ class SemiSupervisedClassifier(Experiment):
 
         full_pipeline.run()
 
-    def pretraining(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def pretraining(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
 
@@ -281,7 +286,10 @@ class SemiSupervisedClassifier(Experiment):
 
         full_pipeline.run()
 
-    def training(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def training(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
 
@@ -312,17 +320,16 @@ class SemiSupervisedClassifier(Experiment):
         )
         preparing_pipeline.run()
 
-        encoder = storage.as_dict()["autoencoder"].encoder
+        encoder_module = storage.as_dict()["autoencoder"].encoder_module
         classifier = storage.as_dict()["model"]
 
-        classifier.embedding = encoder.embedding
-        classifier.feature_extractor = encoder.encoder
+        classifier.encoder_module = encoder_module
 
         if cfg.fine_tuning.frozen_depth > 0:
-            for param in classifier.embedding.parameters():
+            for param in classifier.encoder_module.embedding.parameters():
                 param.requires_grad = False
 
-            for i, layer in enumerate(classifier.feature_extractor.net):
+            for i, layer in enumerate(classifier.encoder_module.mlp):
                 if i <= cfg.fine_tuning.frozen_depth:
                     for param in layer.parameters():
                         param.requires_grad = False
@@ -442,7 +449,10 @@ class SemiSupervisedClassifier(Experiment):
 
         full_pipeline.run()
 
-    def testing(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def testing(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
 

@@ -1,38 +1,17 @@
-from abc import ABC, abstractmethod
+from datetime import datetime
 
 from omegaconf import DictConfig
 
 from idspy.src.idspy.core.storage.dict import DictStorage
 
 
-class Experiment(ABC):
+class Experiment:
     """
     Abstract base class for machine learning experiments.
     """
 
-    @abstractmethod
-    def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
-        """
-        Perform data preprocessing steps.
-        """
-        pass
-
-    def pretraining(self, cfg: DictConfig, storage: DictStorage) -> None:
-        """
-        Train the model.
-        """
-        pass
-
-    @abstractmethod
-    def training(self, cfg: DictConfig, storage: DictStorage) -> None:
-        """
-        Train the model.
-        """
-        pass
-
-    @abstractmethod
-    def testing(self, cfg: DictConfig, storage: DictStorage) -> None:
-        """
-        Test the model and evaluate performance.
-        """
-        pass
+    def __init__(self, cfg: DictConfig, storage: DictStorage) -> None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/{cfg.type}{'_bg' if not cfg.experiment.exclude_background else ''}/{cfg.seed}/{cfg.stage}_{ts}"
+        self.cfg = cfg
+        self.storage = storage

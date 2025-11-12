@@ -10,8 +10,8 @@ type: supervised_classifier
 
 model:
   args:
-    out_features: 10
-    # out_features: 11
+    num_classes: 10
+    # num_classes: 11
 
 experiment:
   exclude_background: true

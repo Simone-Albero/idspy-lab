@@ -75,11 +75,13 @@ from idspy.src.idspy.builtins.step.log.profiler import DataFrameProfiler
 @ExperimentFactory.register()
 class SupervisedClassifier(Experiment):
 
-    def __init__(self, cfg: DictConfig) -> None:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_dir = f"{cfg.path.logs}/{cfg.data.name}/supervised_classifier{'_bg' if not cfg.experiment.exclude_background else ''}/{cfg.seed}/{cfg.stage}_{ts}"
+    def __init__(self, cfg: DictConfig, storage: DictStorage) -> None:
+        super().__init__(cfg, storage)
 
-    def preprocessing(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def preprocessing(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
         bus.subscribe(
@@ -150,7 +152,10 @@ class SupervisedClassifier(Experiment):
 
         full_pipeline.run()
 
-    def training(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def training(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
 
@@ -257,7 +262,10 @@ class SupervisedClassifier(Experiment):
 
         full_pipeline.run()
 
-    def testing(self, cfg: DictConfig, storage: DictStorage) -> None:
+    def testing(self) -> None:
+        cfg = self.cfg
+        storage = self.storage
+
         bus = EventBus()
         bus.subscribe(callback=Logger(), event_type=PipelineEvent.STEP_START)
 

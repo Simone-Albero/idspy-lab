@@ -36,18 +36,19 @@ def main(cfg: DictConfig):
         }
     )
 
-    exp = ExperimentFactory.create(class_name=cfg.type, config={"cfg": cfg})
+    exp = ExperimentFactory.create(
+        class_name=cfg.type, config={"cfg": cfg, "storage": storage}
+    )
 
-    if cfg.stage == "preprocessing":
-        exp.preprocessing(cfg, storage)
-    elif cfg.stage == "pretraining":
-        exp.pretraining(cfg, storage)
-    elif cfg.stage == "training":
-        exp.training(cfg, storage)
-    elif cfg.stage == "testing":
-        exp.testing(cfg, storage)
-    else:
-        raise ValueError(f"Unknown stage: {cfg.stage}")
+    stage_method = getattr(exp, cfg.stage.lower(), None)
+
+    if stage_method is None:
+        raise AttributeError(f"Stage '{cfg.stage}' not found in experiment")
+
+    if not callable(stage_method):
+        raise TypeError(f"Stage '{cfg.stage}' is not callable")
+
+    stage_method()
 
 
 if __name__ == "__main__":
