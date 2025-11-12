@@ -26,3 +26,4 @@ fine_tuning:
       # out_features: 10
       out_features: 11
       hidden_dims: [128, 64, 32]
+  frozen_depth: 2

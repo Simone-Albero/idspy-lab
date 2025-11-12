@@ -317,6 +317,16 @@ class SemiSupervisedClassifier(Experiment):
 
         classifier.embedding = encoder.embedding
         classifier.feature_extractor = encoder.encoder
+
+        if cfg.fine_tuning.frozen_depth > 0:
+            for param in classifier.embedding.parameters():
+                param.requires_grad = False
+
+            for i, layer in enumerate(classifier.feature_extractor.net):
+                if i <= cfg.fine_tuning.frozen_depth:
+                    for param in layer.parameters():
+                        param.requires_grad = False
+
         storage.set({"model": classifier})
 
         setup_pipeline = ObservablePipeline(
