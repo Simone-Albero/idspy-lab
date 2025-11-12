@@ -1,4 +1,4 @@
-name: tabular_classifier
+name: tabular_encoder
 
 args:
   num_numerical_features: ${data.num_numerical}
@@ -6,6 +6,6 @@ args:
   max_emb_dim: ${data.max_cat_levels}
 
   # Architecture
-  hidden_dims: [128, 64, 32]
+  hidden_dims: [128, 64]
   dropout: 0.1
-  num_classes: 10 # 11
+  out_features: 32

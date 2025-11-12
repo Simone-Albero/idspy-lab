@@ -345,9 +345,9 @@ class SupervisedClassifier(Experiment):
                     indices_key="test.sample_indices",
                 ),
                 SelectSamplesByIndices(
-                    data_key="test.outputs.latents",
+                    data_key="test.outputs.z",
                     indices_key="test.sample_indices",
-                    output_key="test.sampled_latents",
+                    output_key="test.sampled_z",
                 ),
                 SelectSamplesByIndices(
                     data_key="test.labels",
@@ -355,12 +355,12 @@ class SupervisedClassifier(Experiment):
                     output_key="test.sampled_labels",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.sampled_latents",
+                    vectors_key="test.sampled_z",
                     labels_key="test.sampled_labels",
                     metrics_key="test.clustering_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.sampled_latents",
+                    vectors_key="test.sampled_z",
                     labels_key="test.sampled_labels",
                     n_components=2,
                     output_key="test.projection_plot",

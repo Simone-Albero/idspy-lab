@@ -2,8 +2,8 @@
 pretraining: {}
 
 defaults:
-  - /model@pretraining.model: tabular_autoencoder
-  - /loss@pretraining.loss: reconstruction
+  - /model@pretraining.model: tabular_encoder
+  - /loss@pretraining.loss: sup_con
   - /model@fine_tuning.model: tabular_classifier
   - /loss@fine_tuning.loss: classification
   - override /loops: default
@@ -11,14 +11,12 @@ defaults:
   - override /scheduler: one_cycle
   - _self_
 
-type: semi_supervised_classifier
+type: supervised_contrastive_classifier
 
 experiment:
   # exclude_background: true
   exclude_background: false
-  labeled_fraction: 0.005
-  benign_tag: 'DDOS attack-HOIC'
-  malicious_tag: null
+  labeled_fraction: 0.001
 
 fine_tuning:
   model:

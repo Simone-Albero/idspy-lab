@@ -396,9 +396,9 @@ class UnsupervisedClassifier(Experiment):
                     indices_key="test.binary_sample_indices",
                 ),
                 SelectSamplesByIndices(
-                    data_key="test.outputs.latents",
+                    data_key="test.outputs.z",
                     indices_key="test.multi_sample_indices",
-                    output_key="test.multi_sampled_latents",
+                    output_key="test.multi_sampled_z",
                 ),
                 SelectSamplesByIndices(
                     data_key="test.multi_labels",
@@ -406,9 +406,9 @@ class UnsupervisedClassifier(Experiment):
                     output_key="test.multi_sampled_labels",
                 ),
                 SelectSamplesByIndices(
-                    data_key="test.outputs.latents",
+                    data_key="test.outputs.z",
                     indices_key="test.binary_sample_indices",
-                    output_key="test.binary_sampled_latents",
+                    output_key="test.binary_sampled_z",
                 ),
                 SelectSamplesByIndices(
                     data_key="test.binary_labels",
@@ -416,39 +416,39 @@ class UnsupervisedClassifier(Experiment):
                     output_key="test.binary_sampled_labels",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.multi_sampled_latents",
+                    vectors_key="test.multi_sampled_z",
                     labels_key="test.multi_sampled_labels",
                     metrics_key="test.multi_latent_metrics",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.binary_sampled_latents",
+                    vectors_key="test.binary_sampled_z",
                     labels_key="test.binary_sampled_labels",
                     metrics_key="test.binary_latent_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.multi_sampled_latents",
+                    vectors_key="test.multi_sampled_z",
                     labels_key="test.multi_sampled_labels",
                     n_components=2,
                     output_key="test.multi_projection_plot",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.binary_sampled_latents",
+                    vectors_key="test.binary_sampled_z",
                     labels_key="test.binary_sampled_labels",
                     n_components=2,
                     output_key="test.binary_projection_plot",
                 ),
                 GaussianMixture(
                     n_clusters=7,
-                    data_key="test.multi_sampled_latents",
+                    data_key="test.multi_sampled_z",
                     output_key="test.gm_labels",
                 ),
                 ClusteringMetrics(
-                    vectors_key="test.multi_sampled_latents",
+                    vectors_key="test.multi_sampled_z",
                     labels_key="test.gm_labels",
                     metrics_key="test.gm_metrics",
                 ),
                 VectorsProjectionPlot(
-                    vectors_key="test.multi_sampled_latents",
+                    vectors_key="test.multi_sampled_z",
                     labels_key="test.gm_labels",
                     n_components=2,
                     output_key="test.gm_projection_plot",
@@ -460,22 +460,22 @@ class UnsupervisedClassifier(Experiment):
                 TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.multi_latent_metrics",
-                    secondary_prefix="multi_latents",
+                    secondary_prefix="multi_z",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.binary_latent_metrics",
-                    secondary_prefix="binary_latents",
+                    secondary_prefix="binary_z",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.binary_projection_plot",
-                    secondary_prefix="binary_latents",
+                    secondary_prefix="binary_z",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
                     subject_key="test.multi_projection_plot",
-                    secondary_prefix="multi_latents",
+                    secondary_prefix="multi_z",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
