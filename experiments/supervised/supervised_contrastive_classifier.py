@@ -320,7 +320,7 @@ class SupervisedContrastiveClassifier(Experiment):
                 param.requires_grad = False
 
             for i, layer in enumerate(classifier.encoder_module.mlp.net):
-                if i <= cfg.fine_tuning.frozen_depth:
+                if i < cfg.fine_tuning.frozen_depth:
                     for param in layer.parameters():
                         param.requires_grad = False
 
