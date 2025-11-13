@@ -16,4 +16,4 @@ model:
 experiment:
   # exclude_background: true
   exclude_background: false
-  labeled_fraction: 0.001
+  labeled_fraction: 1.0

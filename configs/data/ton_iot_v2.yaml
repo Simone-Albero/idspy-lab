@@ -1,5 +1,5 @@
-name: ton_v2
-file_name: ton_v2
+name: ton_iot_v2
+file_name: ton_iot_v2
 format: parquet
 
 # Schema definition
