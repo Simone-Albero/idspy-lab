@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from omegaconf import DictConfig
 
 
@@ -437,21 +435,39 @@ class UnsupervisedClassifier(Experiment):
                     n_components=2,
                     output_key="test.binary_projection_plot",
                 ),
-                GaussianMixture(
-                    n_clusters=7,
+                KMeans(
+                    n_clusters=cfg.experiment.n_clusters,
                     data_key="test.multi_sampled_z",
-                    output_key="test.gm_labels",
+                    output_key="test.km_labels",
+                ),
+                HDBSCAN(
+                    min_cluster_size=500,
+                    data_key="test.multi_sampled_z",
+                    output_key="test.hdbscan_labels",
                 ),
                 ClusteringMetrics(
                     vectors_key="test.multi_sampled_z",
-                    labels_key="test.gm_labels",
-                    metrics_key="test.gm_metrics",
+                    labels_key="test.km_labels",
+                    ground_truth_key="test.multi_sampled_labels",
+                    metrics_key="test.km_metrics",
+                ),
+                ClusteringMetrics(
+                    vectors_key="test.multi_sampled_z",
+                    labels_key="test.hdbscan_labels",
+                    ground_truth_key="test.multi_sampled_labels",
+                    metrics_key="test.hdbscan_metrics",
                 ),
                 VectorsProjectionPlot(
                     vectors_key="test.multi_sampled_z",
-                    labels_key="test.gm_labels",
+                    labels_key="test.km_labels",
                     n_components=2,
-                    output_key="test.gm_projection_plot",
+                    output_key="test.km_projection_plot",
+                ),
+                VectorsProjectionPlot(
+                    vectors_key="test.multi_sampled_z",
+                    labels_key="test.hdbscan_labels",
+                    n_components=2,
+                    output_key="test.hdbscan_projection_plot",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
@@ -479,13 +495,23 @@ class UnsupervisedClassifier(Experiment):
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
-                    subject_key="test.gm_metrics",
-                    secondary_prefix="gm",
+                    subject_key="test.km_metrics",
+                    secondary_prefix="km",
                 ),
                 TBLogger(
                     log_dir=self.log_dir,
-                    subject_key="test.gm_projection_plot",
-                    secondary_prefix="gm",
+                    subject_key="test.km_projection_plot",
+                    secondary_prefix="km",
+                ),
+                TBLogger(
+                    log_dir=self.log_dir,
+                    subject_key="test.hdbscan_metrics",
+                    secondary_prefix="hdbscan",
+                ),
+                TBLogger(
+                    log_dir=self.log_dir,
+                    subject_key="test.hdbscan_projection_plot",
+                    secondary_prefix="hdbscan",
                 ),
             ],
             storage=storage,

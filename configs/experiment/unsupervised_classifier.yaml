@@ -13,3 +13,4 @@ experiment:
   benign_tag: 'DDOS attack-HOIC'
   malicious_tag: null
   # malicious_tag: 'DoS attacks-Hulk'
+  n_clusters: 7
