@@ -14,9 +14,10 @@ defaults:
 type: semi_supervised_classifier
 
 experiment:
+  name: base
   # exclude_background: true
   exclude_background: false
-  labeled_fraction: 0.005
+  n_samples: 500
   benign_tag: 'DDOS attack-HOIC'
   malicious_tag: null
 

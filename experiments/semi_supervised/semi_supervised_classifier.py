@@ -357,7 +357,8 @@ class SemiSupervisedClassifier(Experiment):
                 ),
                 ExtractSplitPartitions(),
                 Downsample(
-                    frac=cfg.experiment.labeled_fraction,
+                    n_samples=cfg.experiment.n_samples,
+                    fair=True,
                     class_col=f"multi_{cfg.data.label_column}",
                     random_state=cfg.seed,
                     df_key="train.data",

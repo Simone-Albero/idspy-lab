@@ -70,6 +70,9 @@ from idspy.src.idspy.builtins.step.ml.cluster.algorithms import (
     KMeans,
     GaussianMixture,
     HDBSCAN,
+    OPTICS,
+    SpectralClustering,
+    AgglomerativeClustering,
 )
 
 
@@ -441,7 +444,7 @@ class UnsupervisedClassifier(Experiment):
                     output_key="test.km_labels",
                 ),
                 HDBSCAN(
-                    min_cluster_size=500,
+                    min_cluster_size=100,
                     data_key="test.multi_sampled_z",
                     output_key="test.hdbscan_labels",
                 ),

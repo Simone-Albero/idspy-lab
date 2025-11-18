@@ -9,6 +9,7 @@ defaults:
 type: unsupervised_classifier
 
 experiment:
+  name: base
   exclude_background: false
   benign_tag: 'DDOS attack-HOIC'
   malicious_tag: null

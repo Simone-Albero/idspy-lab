@@ -15,8 +15,9 @@ type: supervised_contrastive_classifier
 
 experiment:
   # exclude_background: true
+  name: base
   exclude_background: false
-  labeled_fraction: 0.001
+  n_samples: 500
 
 fine_tuning:
   model:

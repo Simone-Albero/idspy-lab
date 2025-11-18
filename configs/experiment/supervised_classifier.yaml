@@ -15,5 +15,6 @@ model:
 
 experiment:
   # exclude_background: true
+  name: base
   exclude_background: false
-  labeled_fraction: 1.0
+  n_samples: null
