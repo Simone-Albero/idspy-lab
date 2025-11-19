@@ -24,4 +24,4 @@ fine_tuning:
     args:
       # num_classes: 10
       num_classes: 11
-  frozen_depth: 2
+  frozen_depth: 0

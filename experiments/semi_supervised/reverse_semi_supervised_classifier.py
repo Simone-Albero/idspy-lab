@@ -73,7 +73,7 @@ from idspy.src.idspy.builtins.step.log.profiler import DataFrameProfiler
 
 
 @ExperimentFactory.register()
-class SemiSupervisedClassifier(Experiment):
+class ReverseSemiSupervisedClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig, storage: DictStorage) -> None:
         super().__init__(cfg, storage)
@@ -178,21 +178,12 @@ class SemiSupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
-                Filter(
+                Downsample(
+                    n_samples=cfg.experiment.n_samples,
+                    fair=True,
+                    class_col=f"multi_{cfg.data.label_column}",
+                    random_state=cfg.seed,
                     df_key="train.data",
-                    query=(
-                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
-                        if cfg.experiment.exclude_background
-                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
-                    ),
-                ),
-                Filter(
-                    df_key="val.data",
-                    query=(
-                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
-                        if cfg.experiment.exclude_background
-                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
-                    ),
                 ),
                 DataFrameProfiler(
                     df_key="train.data",
@@ -214,6 +205,7 @@ class SemiSupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="train.data",
                     dataset_key="train.dataset",
+                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.train.dataloader,
@@ -228,6 +220,7 @@ class SemiSupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="val.data",
                     dataset_key="val.dataset",
+                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.val.dataloader,
@@ -306,7 +299,7 @@ class SemiSupervisedClassifier(Experiment):
                 BuildModel(
                     model_name=cfg.pretraining.model.name,
                     model_args=cfg.pretraining.model.args,
-                    model_key="autoencoder",
+                    model_key="classifier",
                 ),
                 BuildModel(
                     model_name=cfg.fine_tuning.model.name,
@@ -319,7 +312,7 @@ class SemiSupervisedClassifier(Experiment):
                         if not cfg.experiment.exclude_background
                         else cfg.pretraining.model.name
                     ),
-                    model_key="autoencoder",
+                    model_key="classifier",
                     fmt="pt",
                 ),
             ],
@@ -328,21 +321,21 @@ class SemiSupervisedClassifier(Experiment):
         )
         preparing_pipeline.run()
 
-        encoder_module = storage.as_dict()["autoencoder"].encoder_module
-        classifier = storage.as_dict()["model"]
+        encoder_module = storage.as_dict()["classifier"].encoder_module
+        autoencoder = storage.as_dict()["model"]
 
-        classifier.encoder_module = encoder_module
+        autoencoder.encoder_module = encoder_module
 
         if cfg.fine_tuning.frozen_depth > 0:
-            for param in classifier.encoder_module.embedding.parameters():
+            for param in autoencoder.encoder_module.embedding.parameters():
                 param.requires_grad = False
 
-            for i, layer in enumerate(classifier.encoder_module.mlp.net):
+            for i, layer in enumerate(autoencoder.encoder_module.mlp.net):
                 if i < cfg.fine_tuning.frozen_depth:
                     for param in layer.parameters():
                         param.requires_grad = False
 
-        storage.set({"model": classifier})
+        storage.set({"model": autoencoder})
 
         setup_pipeline = ObservablePipeline(
             steps=[
@@ -356,12 +349,21 @@ class SemiSupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
-                Downsample(
-                    n_samples=cfg.experiment.n_samples,
-                    fair=True,
-                    class_col=f"multi_{cfg.data.label_column}",
-                    random_state=cfg.seed,
+                Filter(
                     df_key="train.data",
+                    query=(
+                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
+                    ),
+                ),
+                Filter(
+                    df_key="val.data",
+                    query=(
+                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
+                        if cfg.experiment.exclude_background
+                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
+                    ),
                 ),
                 DataFrameProfiler(
                     df_key="train.data",
@@ -379,7 +381,6 @@ class SemiSupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="train.data",
                     dataset_key="train.dataset",
-                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.train.dataloader,
@@ -394,7 +395,6 @@ class SemiSupervisedClassifier(Experiment):
                 BuildDataset(
                     df_key="val.data",
                     dataset_key="val.dataset",
-                    label_col=f"multi_{cfg.data.label_column}",
                 ),
                 BuildDataLoader(
                     dataloader_args=cfg.loops.val.dataloader,
@@ -445,11 +445,12 @@ class SemiSupervisedClassifier(Experiment):
                 SaveModelWeights(
                     file_path=cfg.path.model,
                     file_name=(
-                        cfg.fine_tuning.model.name + "_bg"
+                        cfg.pretraining.model.name + "_bg"
                         if not cfg.experiment.exclude_background
-                        else cfg.fine_tuning.model.name
+                        else cfg.pretraining.model.name
                     ),
                     fmt="pt",
+                    model_key="classifier",
                 ),
             ],
             storage=storage,
@@ -487,15 +488,15 @@ class SemiSupervisedClassifier(Experiment):
                     cols=f"multi_{cfg.data.label_column}",
                 ),
                 BuildModel(
-                    model_name=cfg.fine_tuning.model.name,
-                    model_args=cfg.fine_tuning.model.args,
+                    model_name=cfg.pretraining.model.name,
+                    model_args=cfg.pretraining.model.args,
                 ),
                 LoadModelWeights(
                     file_path=cfg.path.model,
                     file_name=(
-                        cfg.fine_tuning.model.name + "_bg"
+                        cfg.pretraining.model.name + "_bg"
                         if not cfg.experiment.exclude_background
-                        else cfg.fine_tuning.model.name
+                        else cfg.pretraining.model.name
                     ),
                     fmt="pt",
                 ),

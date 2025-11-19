@@ -1,8 +1,8 @@
 name: contrastive_tabular_autoencoder
 
 args:
-  num_numerical: ${data.num_numerical}
-  num_categorical: ${data.num_categorical}
+  num_numerical_features: ${data.num_numerical}
+  num_categorical_features: ${data.num_categorical}
   max_emb_dim: ${data.max_cat_levels}
   noise_factor: 0.0
 

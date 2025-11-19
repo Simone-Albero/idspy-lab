@@ -347,7 +347,10 @@ class SupervisedContrastiveClassifier(Experiment):
                     df_key="train.data",
                     output_key="train.data_profile",
                 ),
-                BuildLoss(loss_name=cfg.loss.name, loss_args=cfg.loss.args),
+                BuildLoss(
+                    loss_name=cfg.fine_tuning.loss.name,
+                    loss_args=cfg.fine_tuning.loss.args,
+                ),
                 BuildOptimizer(
                     optimizer_name=cfg.optimizer.name, optimizer_args=cfg.optimizer.args
                 ),

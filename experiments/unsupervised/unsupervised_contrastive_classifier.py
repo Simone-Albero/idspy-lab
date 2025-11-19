@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from omegaconf import DictConfig
 
 
@@ -23,19 +21,18 @@ from idspy.src.idspy.builtins.handler.logging import (
     DataFrameProfiler as DataFrameProfilerHandler,
 )
 
-
 from idspy.src.idspy.builtins.step.data.io import LoadData, SaveData
+from idspy.src.idspy.builtins.step.data.sample import (
+    ComputeIndicesByLabel,
+    SelectSamplesByIndices,
+    Downsample,
+)
 from idspy.src.idspy.builtins.step.data.adjust import (
     DropNulls,
     RareClassFilter,
     DFToNumpy,
     Filter,
     Clip,
-)
-from idspy.src.idspy.builtins.step.data.sample import (
-    ComputeIndicesByLabel,
-    SelectSamplesByIndices,
-    Downsample,
 )
 from idspy.src.idspy.builtins.step.data.map import FrequencyMap, LabelMap
 from idspy.src.idspy.builtins.step.data.scale import StandardScale
@@ -51,11 +48,11 @@ from idspy.src.idspy.builtins.step.nn.torch.builder.optimizer import BuildOptimi
 from idspy.src.idspy.builtins.step.nn.torch.builder.loss import BuildLoss
 from idspy.src.idspy.builtins.step.nn.torch.builder.scheduler import BuildScheduler
 
-from idspy.src.idspy.builtins.step.nn.torch.engine.forward import MakePredictions
 from idspy.src.idspy.builtins.step.nn.torch.engine.epoch import (
     TrainOneEpoch,
     ValidateOneEpoch,
 )
+from idspy.src.idspy.builtins.step.nn.torch.engine.forward import MakePredictions
 
 from idspy.src.idspy.builtins.step.nn.torch.engine.early_stopping import EarlyStopping
 from idspy.src.idspy.builtins.step.nn.torch.model.io import (
@@ -65,24 +62,18 @@ from idspy.src.idspy.builtins.step.nn.torch.model.io import (
 from idspy.src.idspy.builtins.step.metric.classification import (
     SupervisedClassificationMetrics,
 )
-from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 from idspy.src.idspy.builtins.step.metric.projection import VectorsProjectionPlot
+from idspy.src.idspy.builtins.step.metric.clustering import ClusteringMetrics
 
 from idspy.src.idspy.builtins.step.log.tensorboard import TBLogger, TBWeightsLogger
 from idspy.src.idspy.builtins.step.log.profiler import DataFrameProfiler
 
 
 @ExperimentFactory.register()
-class SemiSupervisedClassifier(Experiment):
+class UnsupervisedContrastiveClassifier(Experiment):
 
     def __init__(self, cfg: DictConfig, storage: DictStorage) -> None:
         super().__init__(cfg, storage)
-
-        if cfg.experiment.exclude_background:
-            if cfg.experiment.benign_tag is None:
-                raise ValueError(
-                    "benign_tag must be specified for the experiment when exclude_background is True."
-                )
 
     def preprocessing(self) -> None:
         cfg = self.cfg
@@ -95,14 +86,13 @@ class SemiSupervisedClassifier(Experiment):
             event_type=PipelineEvent.PIPELINE_END,
             predicate=only_source("preprocessing_pipeline"),
         )
+
         fit_aware_pipeline = ObservableFittablePipeline(
             steps=[
                 Clip(),
                 StandardScale(),
                 FrequencyMap(max_levels=cfg.data.max_cat_levels),
-                LabelMap(
-                    target_col=f"multi_{cfg.data.label_column}",
-                ),
+                LabelMap(target_col=f"multi_{cfg.data.label_column}"),
             ],
             name="fit_aware_pipeline",
             bus=bus,
@@ -178,21 +168,12 @@ class SemiSupervisedClassifier(Experiment):
                     fmt=cfg.data.format,
                 ),
                 ExtractSplitPartitions(),
-                Filter(
+                Downsample(
+                    n_samples=None,
+                    fair=True,
+                    class_col=f"multi_{cfg.data.label_column}",
+                    random_state=cfg.seed,
                     df_key="train.data",
-                    query=(
-                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
-                        if cfg.experiment.exclude_background
-                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
-                    ),
-                ),
-                Filter(
-                    df_key="val.data",
-                    query=(
-                        f"{cfg.data.label_column} == '{cfg.experiment.benign_tag}'"
-                        if cfg.experiment.exclude_background
-                        else f"{cfg.data.label_column} == '{cfg.data.benign_tag}'"
-                    ),
                 ),
                 DataFrameProfiler(
                     df_key="train.data",
@@ -234,10 +215,7 @@ class SemiSupervisedClassifier(Experiment):
                     dataset_key="val.dataset",
                     dataloader_key="val.dataloader",
                 ),
-                TBLogger(
-                    log_dir=self.log_dir,
-                    subject_key="train.data_profile",
-                ),
+                TBLogger(log_dir=self.log_dir, subject_key="train.data_profile"),
             ],
             storage=storage,
             bus=bus,
@@ -306,7 +284,7 @@ class SemiSupervisedClassifier(Experiment):
                 BuildModel(
                     model_name=cfg.pretraining.model.name,
                     model_args=cfg.pretraining.model.args,
-                    model_key="autoencoder",
+                    model_key="encoder",
                 ),
                 BuildModel(
                     model_name=cfg.fine_tuning.model.name,
@@ -319,7 +297,7 @@ class SemiSupervisedClassifier(Experiment):
                         if not cfg.experiment.exclude_background
                         else cfg.pretraining.model.name
                     ),
-                    model_key="autoencoder",
+                    model_key="encoder",
                     fmt="pt",
                 ),
             ],
@@ -328,7 +306,7 @@ class SemiSupervisedClassifier(Experiment):
         )
         preparing_pipeline.run()
 
-        encoder_module = storage.as_dict()["autoencoder"].encoder_module
+        encoder_module = storage.as_dict()["encoder"].encoder_module
         classifier = storage.as_dict()["model"]
 
         classifier.encoder_module = encoder_module
@@ -372,9 +350,7 @@ class SemiSupervisedClassifier(Experiment):
                     loss_args=cfg.fine_tuning.loss.args,
                 ),
                 BuildOptimizer(
-                    optimizer_name=cfg.optimizer.name,
-                    optimizer_args=cfg.optimizer.args,
-                    loss_key="loss_fn",
+                    optimizer_name=cfg.optimizer.name, optimizer_args=cfg.optimizer.args
                 ),
                 BuildDataset(
                     df_key="train.data",
@@ -410,14 +386,8 @@ class SemiSupervisedClassifier(Experiment):
         training_pipeline = ObservableRepeatablePipeline(
             steps=[
                 TrainOneEpoch(metrics_key="train.metrics"),
-                TBLogger(
-                    log_dir=self.log_dir,
-                    subject_key="train.metrics",
-                ),
-                TBWeightsLogger(
-                    log_dir=self.log_dir,
-                    model_key="model",
-                ),
+                TBLogger(log_dir=self.log_dir, subject_key="train.metrics"),
+                TBWeightsLogger(log_dir=self.log_dir, model_key="model"),
                 ValidateOneEpoch(
                     dataloader_key="val.dataloader",
                     metrics_key="val.metrics",

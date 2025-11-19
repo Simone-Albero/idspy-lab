@@ -1,17 +1,15 @@
 # @package _global_
-pretraining: {}
-
 defaults:
-  - /model@pretraining.model: tabular_autoencoder
-  - /loss@pretraining.loss: reconstruction
-  - /model@fine_tuning.model: tabular_classifier
-  - /loss@fine_tuning.loss: classification
+  - /model@pretraining.model: tabular_classifier
+  - /loss@pretraining.loss: classification
+  - /model@fine_tuning.model: tabular_autoencoder
+  - /loss@fine_tuning.loss: reconstruction
   - override /loops: default
   - override /optimizer: adamw
   - override /scheduler: one_cycle
   - _self_
 
-type: semi_supervised_classifier
+type: reverse_semi_supervised_classifier
 
 experiment:
   name: base
@@ -21,9 +19,11 @@ experiment:
   benign_tag: 'DDOS attack-HOIC'
   malicious_tag: null
 
-fine_tuning:
+pretraining:
   model:
     args:
       # num_classes: 10
       num_classes: 11
+
+fine_tuning:
   frozen_depth: 0
